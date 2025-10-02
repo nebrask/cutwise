@@ -75,7 +75,7 @@ export default function LayoutCanvas({
 
       ctx.fillStyle = "#e5e7eb";
       ctx.font = "12px ui-sans-serif, system-ui, -apple-system, Segoe UI";
-      ctx.fillText(`${idx + 1}`, x + 6, y + 16);
+      ctx.fillText(r.label, x + 6, y + 16);
     });
   }, [pxW, pxH, scale, sheet]);
 
