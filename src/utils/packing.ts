@@ -1,16 +1,16 @@
 import type { Panel, PlannerInputs } from "../types";
 
 export type PlacedRect = {
-    id: string;
-    baseId: string;
-    baseIndex: number;
-    copyIndex: number;
-    label: string;
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-    rotated?: boolean;
+  id: string;
+  baseId: string;
+  baseIndex: number;
+  copyIndex: number;
+  label: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotated?: boolean;
 };
 
 export type SheetLayout = {
@@ -19,16 +19,16 @@ export type SheetLayout = {
 };
 
 export type PackResult = {
-    sheets: SheetLayout[];
-    totalSheets: number;
-    totalPanelArea: number;
-    sheetAreaEach: number;
+  sheets: SheetLayout[];
+  totalSheets: number;
+  totalPanelArea: number;
+  sheetAreaEach: number;
 };
 
 type PanelCopy = Panel & {
-    baseIndex: number;
-    copyIndex: number;
-    label: string;
+  baseIndex: number;
+  copyIndex: number;
+  label: string;
 };
 
 function expandCopies(panels: Panel[]): PanelCopy[] {
@@ -138,17 +138,20 @@ export function packImproved(
   const copies = expandCopies(panels);
 
   copies.sort((a, b) => {
-  if (opts.sort === "area") {
-    return b.width * b.height - a.width * a.height;
-  }
-  return b.height - a.height;
-})
+    if (opts.sort === "area") {
+      return b.width * b.height - a.width * a.height;
+    }
+    const ah = Math.max(a.width, a.height);
+    const bh = Math.max(b.width, b.height);
+    return bh - ah;
+  });
 
   const sheetW = sheet.width;
   const sheetH = sheet.height;
   const sheetArea = sheetW * sheetH;
 
   const sheets: SheetLayout[] = [];
+
   let current: SheetLayout = { index: 0, rects: [] };
   sheets.push(current);
 
@@ -164,6 +167,13 @@ export function packImproved(
     rowH = 0;
   };
 
+
+  const score = (spaceOnRow: number, rowHNow: number, wCand: number, hCand: number) => {
+    const rowHAfter = Math.max(rowHNow, hCand);
+    const leftover = spaceOnRow - wCand;
+    return { rowHAfter, leftover };
+  };
+
   for (let i = 0; i < copies.length; i += 1) {
     const c = copies[i];
 
@@ -171,23 +181,13 @@ export function packImproved(
     let h = c.height;
     let rotated = false;
 
-    const spaceOnRow = (cursorX === 0 ? sheetW : sheetW - (cursorX + kerf));
-    const fitsNormal = w <= spaceOnRow && h <= (sheetH - cursorY);
-    const fitsRotated = opts.allowRotate
+    let spaceOnRow = (cursorX === 0 ? sheetW : sheetW - (cursorX + kerf));
+    let fitsNormal = w <= spaceOnRow && h <= (sheetH - cursorY);
+    let fitsRotated = opts.allowRotate
       ? (h <= spaceOnRow && w <= (sheetH - cursorY))
       : false;
 
-    if (!fitsNormal && fitsRotated) {
-      rotated = true;
-      [w, h] = [h, w];
-    } else if (fitsNormal && fitsRotated) {
-      const leftoverNormal = spaceOnRow - w;
-      const leftoverRot = spaceOnRow - h;
-      if (leftoverRot >= 0 && leftoverRot < leftoverNormal) {
-        rotated = true;
-        [w, h] = [h, w];
-      }
-    } else if (!fitsNormal && !fitsRotated) {
+    if (!fitsNormal && !fitsRotated) {
       cursorX = 0;
       cursorY = cursorY + rowH + kerf;
       rowH = 0;
@@ -195,17 +195,29 @@ export function packImproved(
       if (h > (sheetH - cursorY) && (!opts.allowRotate || w > (sheetH - cursorY))) {
         placeOnNewSheet();
       }
-      const spaceOnRow2 = (cursorX === 0 ? sheetW : sheetW - (cursorX + kerf));
-      const fitsNormal2 = w <= spaceOnRow2 && h <= (sheetH - cursorY);
-      const fitsRotated2 = opts.allowRotate
-        ? (h <= spaceOnRow2 && w <= (sheetH - cursorY))
+
+      spaceOnRow = (cursorX === 0 ? sheetW : sheetW - (cursorX + kerf));
+      fitsNormal = w <= spaceOnRow && h <= (sheetH - cursorY);
+      fitsRotated = opts.allowRotate
+        ? (h <= spaceOnRow && w <= (sheetH - cursorY))
         : false;
 
-      if (!fitsNormal2 && fitsRotated2) {
+      if (!fitsNormal && !fitsRotated) {
+        continue;
+      }
+    }
+
+    if (fitsNormal && !fitsRotated) {
+      // keep as is
+    } else if (!fitsNormal && fitsRotated) {
+      rotated = true;
+      [w, h] = [h, w];
+    } else if (fitsNormal && fitsRotated) {
+      const sN = score(spaceOnRow, rowH, w, h);
+      const sR = score(spaceOnRow, rowH, h, w);
+      if (sR.rowHAfter < sN.rowHAfter || (sR.rowHAfter === sN.rowHAfter && sR.leftover < sN.leftover)) {
         rotated = true;
         [w, h] = [h, w];
-      } else if (!fitsNormal2 && !fitsRotated2) {
-        continue;
       }
     }
 
@@ -233,4 +245,18 @@ export function packImproved(
     totalPanelArea,
     sheetAreaEach: sheetArea,
   };
+}
+
+export function sheetUsedArea(sheet: SheetLayout): number {
+  return sheet.rects.reduce((acc, r) => acc + r.w * r.h, 0);
+}
+
+export function computeWastePercentForSheet(
+  sheet: SheetLayout,
+  sheetAreaEach: number
+): number {
+  if (sheetAreaEach <= 0) return 0;
+  const used = sheetUsedArea(sheet);
+  const waste = sheetAreaEach - used;
+  return Math.max(0, (waste / sheetAreaEach) * 100);
 }
