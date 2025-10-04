@@ -117,7 +117,7 @@ function App() {
         <LayoutView inputs={inputs} onBack={backToInputs} />
       )}
 
-      <footer className="fixed bottom-0 left-0 right-0 border-t border-gray-900 bg-black py-6 text-center text-xs text-gray-500">
+      <footer className="fixed bottom-0 left-0 right-0 border-t border-gray-900 bg-black py-3 text-center text-[10px] text-gray-500">
         © {new Date().getFullYear()} OptiCut
       </footer>
     </main>
