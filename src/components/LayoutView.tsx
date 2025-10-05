@@ -10,6 +10,9 @@ import {
   computeWastePercentForSheet,
 } from "../utils/packing";
 import SheetPager from "./SheetPager";
+import { packResultToCSV, downloadCSV } from "../utils/csv";
+import { colorForIndex } from "../utils/colors";
+import ColorLegend from "./ColorLegend";
 
 type Props = {
   inputs: PlannerInputs;
@@ -19,7 +22,6 @@ type Props = {
 export default function LayoutView({ inputs, onBack }: Props) {
   const [allowRotate, setAllowRotate] = useState(true);
   const [sort, setSort] = useState<"height" | "area">("height");
-
   const [baseIdx, setBaseIdx] = useState(0);
   const [impIdx, setImpIdx] = useState(0);
 
@@ -34,7 +36,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
 
   const wasteBaseTotal = computeWastePercent(baseline);
   const wasteImpTotal  = computeWastePercent(improved);
-  const deltaTotal = (wasteBaseTotal - wasteImpTotal);
+  const deltaTotal = wasteBaseTotal - wasteImpTotal;
 
   const wasteBaseSheet = computeWastePercentForSheet(
     baseline.sheets[safeBaseIdx],
@@ -44,6 +46,15 @@ export default function LayoutView({ inputs, onBack }: Props) {
     improved.sheets[safeImpIdx],
     improved.sheetAreaEach
   );
+
+  const onExportBaseline = () => {
+    const csv = packResultToCSV(baseline);
+    downloadCSV("opticut_baseline.csv", csv);
+  };
+  const onExportImproved = () => {
+    const csv = packResultToCSV(improved);
+    downloadCSV("opticut_improved.csv", csv);
+  };
 
   return (
     <div className="mx-auto max-w-[90rem] px-4 py-6 pb-28">
@@ -87,6 +98,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
                   kerf={inputs.kerf}
                   sheet={baseline.sheets[safeBaseIdx]}
                   maxViewportHeightRatio={0.92}
+                  colorForBaseIndex={colorForIndex}
                 />
                 <div className="mt-2 text-xs text-gray-400">
                   Sheet {safeBaseIdx + 1}/{baseline.totalSheets} • Waste:{" "}
@@ -104,6 +116,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
                   kerf={inputs.kerf}
                   sheet={improved.sheets[safeImpIdx]}
                   maxViewportHeightRatio={0.92}
+                  colorForBaseIndex={colorForIndex}
                 />
                 <div className="mt-2 text-xs text-gray-400">
                   Sheet {safeImpIdx + 1}/{improved.totalSheets} • Waste:{" "}
@@ -167,6 +180,35 @@ export default function LayoutView({ inputs, onBack }: Props) {
             <p className="mt-3 text-xs text-gray-500">
               Previews show the selected sheet for each strategy. Totals are computed across all sheets.
             </p>
+          </Section>
+
+          <Section title="Export & Legend">
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onExportBaseline}
+                  className="rounded-xl bg-gray-800 px-3 py-1.5 text-xs hover:bg-gray-700"
+                >
+                  Export Baseline CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={onExportImproved}
+                  className="rounded-xl bg-gray-800 px-3 py-1.5 text-xs hover:bg-gray-700"
+                >
+                  Export Improved CSV
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-gray-800">
+                <div className="mb-2 text-xs text-gray-400">Panel Colors</div>
+                <ColorLegend
+                  count={inputs.panels.length}
+                  colorForBaseIndex={colorForIndex}
+                />
+              </div>
+            </div>
           </Section>
         </aside>
       </div>
