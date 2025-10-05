@@ -8,6 +8,7 @@ type Props = {
   kerf: number;
   sheet: SheetLayout;
   maxViewportHeightRatio?: number;
+  colorForBaseIndex?: (idx: number) => string;
 };
 
 export default function LayoutCanvas({
@@ -16,6 +17,7 @@ export default function LayoutCanvas({
   kerf,
   sheet,
   maxViewportHeightRatio = 0.9,
+  colorForBaseIndex,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { ref: boxRef, size: boxSize } = useElementSize<HTMLDivElement>();
@@ -76,7 +78,8 @@ export default function LayoutCanvas({
       const w = r.w * scale;
       const h = r.h * scale;
 
-      ctx.fillStyle = "#0891b2";
+      const fill = colorForBaseIndex ? colorForBaseIndex(r.baseIndex) : "#0891b2";
+      ctx.fillStyle = fill;
       ctx.fillRect(x, y, w, h);
 
       ctx.strokeStyle = "#0ea5e9";
@@ -92,14 +95,10 @@ export default function LayoutCanvas({
     ctx.strokeStyle = "#3f3f46";
     ctx.lineWidth = 1;
     ctx.strokeRect(sx, sy, sw, sh);
-  }, [pxW, pxH, scale, sheet]);
+  }, [pxW, pxH, scale, sheet, colorForBaseIndex]);
 
   return (
-    <div
-      ref={boxRef}
-      className="w-full"
-      style={{ overflow: "hidden" }}
-    >
+    <div ref={boxRef} className="w-full" style={{ overflow: "hidden" }}>
       <div className="rounded-xl border border-gray-800 bg-gray-950 p-3">
         <canvas
           ref={canvasRef}
