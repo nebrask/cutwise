@@ -139,12 +139,23 @@ export function packImproved(
 
   copies.sort((a, b) => {
     if (opts.sort === "area") {
-      return b.width * b.height - a.width * a.height;
+      const areaDiff = (b.width * b.height) - (a.width * a.height);
+      if (areaDiff !== 0) return areaDiff;
+      const bLong = Math.max(b.width, b.height);
+      const aLong = Math.max(a.width, a.height);
+      if (bLong !== aLong) return bLong - aLong;
+      if (b.width !== a.width) return b.width - a.width;
+      return a.baseIndex - b.baseIndex;
     }
-    const ah = Math.max(a.width, a.height);
-    const bh = Math.max(b.width, b.height);
-    return bh - ah;
+
+    if (b.height !== a.height) return b.height - a.height;
+    if (b.width !== a.width) return b.width - a.width;
+    const areaDiff = (b.width * b.height) - (a.width * a.height);
+    if (areaDiff !== 0) return areaDiff;
+    
+    return a.baseIndex - b.baseIndex;
   });
+
 
   const sheetW = sheet.width;
   const sheetH = sheet.height;
