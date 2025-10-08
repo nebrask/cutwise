@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import LayoutCanvas from "./LayoutCanvas";
 import Section from "./Section";
 import type { PlannerInputs } from "../types";
@@ -13,11 +13,137 @@ import SheetPager from "./SheetPager";
 import { packResultToCSV, downloadCSV } from "../utils/csv";
 import { colorForIndex } from "../utils/colors";
 import ColorLegend from "./ColorLegend";
+import { sheetToSVG, downloadSVG } from "../utils/svg";
+import { ChevronDown } from 'lucide-react';
+import { downloadZip } from "../utils/zip";
 
 type Props = {
   inputs: PlannerInputs;
   onBack: () => void;
 };
+
+type ExportAction = "imp_svg" | "imp_svg_all" | "imp_csv" | "base_svg" | "base_svg_all" | "base_csv";
+
+type ExportHandlers = {
+  onBaselineCSV: () => void;
+  onImprovedCSV: () => void;
+  onBaselineSVG: () => void;
+  onImprovedSVG: () => void;
+  onBaselineSVGAll: () => void;
+  onImprovedSVGAll: () => void;
+  baselineSheetCount: number;
+  improvedSheetCount: number;
+  defaultPrimary?: ExportAction;
+};
+
+function SplitExportButton({
+  onBaselineCSV,
+  onImprovedCSV,
+  onBaselineSVG,
+  onImprovedSVG,
+  onBaselineSVGAll,
+  onImprovedSVGAll,
+  baselineSheetCount,
+  improvedSheetCount,
+  defaultPrimary = "imp_svg",
+}: ExportHandlers) {
+  const [open, setOpen] = useState(false);
+  const [primary, setPrimary] = useState<ExportAction>(defaultPrimary);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const handlers = {
+    imp_svg: onImprovedSVG,
+    imp_svg_all: onImprovedSVGAll,
+    imp_csv: onImprovedCSV,
+    base_svg: onBaselineSVG,
+    base_svg_all: onBaselineSVGAll,
+    base_csv: onBaselineCSV,
+  };
+
+  const labels = {
+    imp_svg: "Export Improved SVG (current)",
+    imp_svg_all: `Export Improved All (${improvedSheetCount} sheets, ZIP)`,
+    imp_csv: "Export Improved CSV",
+    base_svg: "Export Baseline SVG (current)",
+    base_svg_all: `Export Baseline All (${baselineSheetCount} sheets, ZIP)`,
+    base_csv: "Export Baseline CSV",
+  };
+
+  const menuItems = [
+    { section: "Improved", items: [
+      { action: "imp_svg" as const, label: labels.imp_svg },
+      ...(improvedSheetCount > 1 ? [
+        { action: "imp_svg_all" as const, label: labels.imp_svg_all }
+      ] : []),
+      { action: "imp_csv" as const, label: labels.imp_csv },
+    ]},
+    { section: "Baseline", items: [
+      { action: "base_svg" as const, label: labels.base_svg },
+      ...(baselineSheetCount > 1 ? [
+        { action: "base_svg_all" as const, label: labels.base_svg_all }
+      ] : []),
+      { action: "base_csv" as const, label: labels.base_csv },
+    ]},
+  ];
+
+  const handleAction = (action: ExportAction, makePrimary = false) => {
+    if (makePrimary) setPrimary(action);
+    handlers[action]();
+    if (makePrimary) setOpen(false);
+  };
+
+  return (
+    <div ref={wrapperRef} className="inline-flex items-stretch rounded-xl overflow-hidden border border-gray-800">
+      <button
+        type="button"
+        onClick={() => handleAction(primary)}
+        className="bg-gray-800 px-3 py-1.5 text-xs hover:bg-gray-700"
+        title={labels[primary]}
+      >
+        {labels[primary]}
+      </button>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="bg-gray-800 px-2 py-1.5 text-xs hover:bg-gray-700 border-l border-gray-700"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute z-10 mt-8 w-56 overflow-hidden rounded-xl border border-gray-800 bg-gray-900 shadow-xl">
+          {menuItems.map(({ section, items }, i) => (
+            <React.Fragment key={section}>
+              {i > 0 && <div className="border-t border-gray-800" />}
+              <div className="p-1.5 text-[10px] uppercase tracking-wide text-gray-500">{section}</div>
+              {items.map(({ action, label }) => (
+                <button
+                  key={action}
+                  role="menuitem"
+                  className="w-full px-2.5 py-1.5 text-left text-xs hover:bg-gray-800"
+                  onClick={() => handleAction(action, true)}
+                >
+                  {label}
+                </button>
+              ))}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function LayoutView({ inputs, onBack }: Props) {
   const [allowRotate, setAllowRotate] = useState(true);
@@ -32,10 +158,10 @@ export default function LayoutView({ inputs, onBack }: Props) {
   );
 
   const safeBaseIdx = Math.min(baseIdx, Math.max(0, baseline.totalSheets - 1));
-  const safeImpIdx  = Math.min(impIdx,  Math.max(0, improved.totalSheets - 1));
+  const safeImpIdx = Math.min(impIdx, Math.max(0, improved.totalSheets - 1));
 
   const wasteBaseTotal = computeWastePercent(baseline);
-  const wasteImpTotal  = computeWastePercent(improved);
+  const wasteImpTotal = computeWastePercent(improved);
   const deltaTotal = wasteBaseTotal - wasteImpTotal;
 
   const wasteBaseSheet = computeWastePercentForSheet(
@@ -54,6 +180,67 @@ export default function LayoutView({ inputs, onBack }: Props) {
   const onExportImproved = () => {
     const csv = packResultToCSV(improved);
     downloadCSV("opticut_improved.csv", csv);
+  };
+
+  const onExportBaselineSVG = () => {
+    const svg = sheetToSVG({
+      sheet: baseline.sheets[safeBaseIdx],
+      sheetWidthMm: inputs.sheet.width,
+      sheetHeightMm: inputs.sheet.height,
+      showLabels: true,
+      colorForBaseIndex: colorForIndex,
+    });
+    downloadSVG(`opticut_baseline_sheet${safeBaseIdx + 1}.svg`, svg);
+  };
+  const onExportImprovedSVG = () => {
+    const svg = sheetToSVG({
+      sheet: improved.sheets[safeImpIdx],
+      sheetWidthMm: inputs.sheet.width,
+      sheetHeightMm: inputs.sheet.height,
+      showLabels: true,
+      colorForBaseIndex: colorForIndex,
+    });
+    downloadSVG(`opticut_improved_sheet${safeImpIdx + 1}.svg`, svg);
+  };
+
+  const onExportAllBaselineSVG = async () => {
+    try {
+      const files = baseline.sheets.map((sheet, index) => ({
+        name: `baseline_sheet${index + 1}.svg`,
+        content: sheetToSVG({
+          sheet,
+          sheetWidthMm: inputs.sheet.width,
+          sheetHeightMm: inputs.sheet.height,
+          showLabels: true,
+          colorForBaseIndex: colorForIndex,
+        })
+      }));
+      
+      await downloadZip("opticut_baseline_all_sheets.zip", files);
+    } catch (error) {
+      console.error("Failed to export baseline ZIP ", error);
+      alert("Failed to export ZIP file. Please try again.");
+    }
+  };
+
+  const onExportAllImprovedSVG = async () => {
+    try {
+      const files = improved.sheets.map((sheet, index) => ({
+        name: `improved_sheet${index + 1}.svg`,
+        content: sheetToSVG({
+          sheet,
+          sheetWidthMm: inputs.sheet.width,
+          sheetHeightMm: inputs.sheet.height,
+          showLabels: true,
+          colorForBaseIndex: colorForIndex,
+        })
+      }));
+      
+      await downloadZip("opticut_improved_all_sheets.zip", files);
+    } catch (error) {
+      console.error("Failed to export improved ZIP ", error);
+      alert("Failed to export ZIP file. Please try again.");
+    }
   };
 
   return (
@@ -102,7 +289,9 @@ export default function LayoutView({ inputs, onBack }: Props) {
                 />
                 <div className="mt-2 text-xs text-gray-400">
                   Sheet {safeBaseIdx + 1}/{baseline.totalSheets} • Waste:{" "}
-                  <span className="text-gray-100">{wasteBaseSheet.toFixed(1)}%</span>
+                  <span className="text-gray-100">
+                    {wasteBaseSheet.toFixed(1)}%
+                  </span>
                 </div>
               </div>
 
@@ -120,89 +309,95 @@ export default function LayoutView({ inputs, onBack }: Props) {
                 />
                 <div className="mt-2 text-xs text-gray-400">
                   Sheet {safeImpIdx + 1}/{improved.totalSheets} • Waste:{" "}
-                  <span className="text-gray-100">{wasteImpSheet.toFixed(1)}%</span>
+                  <span className="text-gray-100">
+                    {wasteImpSheet.toFixed(1)}%
+                  </span>
                 </div>
               </div>
             </div>
           </Section>
         </div>
 
-        <aside className="space-y-4">
+        <aside className="space-y-3">
           <Section title="Heuristic Controls">
-            <div className="space-y-3 text-sm">
+            <div className="space-y-2.5 text-sm">
               <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
-                  checked={allowRotate}
-                  onChange={(e) => {
-                    setAllowRotate(e.target.checked);
-                    setImpIdx(0);
-                  }}
-                />
-                <span>Allow 90° rotation</span>
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5"
+            checked={allowRotate}
+            onChange={(e) => {
+              setAllowRotate(e.target.checked);
+              setImpIdx(0);
+            }}
+          />
+          <span>Allow 90° rotation</span>
               </label>
 
               <label className="block">
-                <span className="mb-1 block text-sm text-gray-300">Sort panels by</span>
-                <select
-                  value={sort}
-                  onChange={(e) => {
-                    setSort(e.target.value as "height" | "area");
-                    setImpIdx(0);
-                  }}
-                  className="w-full rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
-                >
-                  <option value="height">Height (desc)</option>
-                  <option value="area">Area (desc)</option>
-                </select>
+          <span className="mb-1 block text-sm text-gray-300">
+            Sort panels by
+          </span>
+          <select
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value as "height" | "area");
+              setImpIdx(0);
+            }}
+            className="w-full rounded-xl border border-gray-700 bg-gray-900 px-2.5 py-1.5 text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
+          >
+            <option value="height">Height (desc)</option>
+            <option value="area">Area (desc)</option>
+          </select>
               </label>
             </div>
           </Section>
 
           <Section title="Totals">
-            <ul className="space-y-1 text-sm">
+            <ul className="space-y-0.5 text-sm">
               <li>
-                Baseline waste (all sheets):{" "}
-                <span className="text-gray-100">{wasteBaseTotal.toFixed(1)}%</span>
+          Baseline waste (all sheets):{" "}
+          <span className="text-gray-100">
+            {wasteBaseTotal.toFixed(1)}%
+          </span>
               </li>
               <li>
-                Improved waste (all sheets):{" "}
-                <span className="text-gray-100">{wasteImpTotal.toFixed(1)}%</span>
+          Improved waste (all sheets):{" "}
+          <span className="text-gray-100">
+            {wasteImpTotal.toFixed(1)}%
+          </span>
               </li>
               <li>
-                Waste delta:{" "}
-                <span className={`${deltaTotal >= 0 ? "text-emerald-400" : "text-red-300"}`}>
-                  {deltaTotal >= 0 ? "▼" : "▲"} {Math.abs(deltaTotal).toFixed(1)}%
-                </span>
+          Waste delta:{" "}
+          <span
+            className={`${
+              deltaTotal >= 0 ? "text-emerald-400" : "text-red-300"
+            }`}
+          >
+            {deltaTotal >= 0 ? "▼" : "▲"} {Math.abs(deltaTotal).toFixed(1)}%
+          </span>
               </li>
             </ul>
-            <p className="mt-3 text-xs text-gray-500">
+            <p className="mt-2.5 text-xs text-gray-500">
               Previews show the selected sheet for each strategy. Totals are computed across all sheets.
             </p>
           </Section>
 
           <Section title="Export & Legend">
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={onExportBaseline}
-                  className="rounded-xl bg-gray-800 px-3 py-1.5 text-xs hover:bg-gray-700"
-                >
-                  Export Baseline CSV
-                </button>
-                <button
-                  type="button"
-                  onClick={onExportImproved}
-                  className="rounded-xl bg-gray-800 px-3 py-1.5 text-xs hover:bg-gray-700"
-                >
-                  Export Improved CSV
-                </button>
-              </div>
-
+            <div className="space-y-2.5">
+              <SplitExportButton
+                onBaselineCSV={onExportBaseline}
+                onImprovedCSV={onExportImproved}
+                onBaselineSVG={onExportBaselineSVG}
+                onImprovedSVG={onExportImprovedSVG}
+                onBaselineSVGAll={onExportAllBaselineSVG}
+                onImprovedSVGAll={onExportAllImprovedSVG}
+                baselineSheetCount={baseline.totalSheets}
+                improvedSheetCount={improved.totalSheets}
+                defaultPrimary="imp_svg"
+              />
               <div className="pt-2 border-t border-gray-800">
-                <div className="mb-2 text-xs text-gray-400">Panel Colors</div>
+              <div className="mb-1.5 text-xs text-gray-400">Panel Colors</div>
                 <ColorLegend
                   count={inputs.panels.length}
                   colorForBaseIndex={colorForIndex}
