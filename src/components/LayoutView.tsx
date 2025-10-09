@@ -6,7 +6,8 @@ import type { PackResult } from "../utils/packing";
 import {
   computeWastePercent,
   packNaive,
-  packImproved,
+  packShelf,
+  packSkyline,
   computeWastePercentForSheet,
 } from "../utils/packing";
 import SheetPager from "./SheetPager";
@@ -14,7 +15,7 @@ import { packResultToCSV, downloadCSV } from "../utils/csv";
 import { colorForIndex } from "../utils/colors";
 import ColorLegend from "./ColorLegend";
 import { sheetToSVG, downloadSVG } from "../utils/svg";
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown } from "lucide-react";
 import { downloadZip } from "../utils/zip";
 
 type Props = {
@@ -22,7 +23,7 @@ type Props = {
   onBack: () => void;
 };
 
-type ExportAction = "imp_svg" | "imp_svg_all" | "imp_csv" | "base_svg" | "base_svg_all" | "base_csv";
+type ExportAction = "imp_svg" | "imp_svg_all" | "imp_csv"| "base_svg" | "base_svg_all" | "base_csv";
 
 type ExportHandlers = {
   onBaselineCSV: () => void;
@@ -34,6 +35,7 @@ type ExportHandlers = {
   baselineSheetCount: number;
   improvedSheetCount: number;
   defaultPrimary?: ExportAction;
+  busy?: boolean;
 };
 
 function SplitExportButton({
@@ -46,6 +48,7 @@ function SplitExportButton({
   baselineSheetCount,
   improvedSheetCount,
   defaultPrimary = "imp_svg",
+  busy = false,
 }: ExportHandlers) {
   const [open, setOpen] = useState(false);
   const [primary, setPrimary] = useState<ExportAction>(defaultPrimary);
@@ -102,60 +105,70 @@ function SplitExportButton({
   };
 
   return (
-    <div ref={wrapperRef} className="inline-flex items-stretch rounded-xl overflow-hidden border border-gray-800">
-      <button
-        type="button"
-        onClick={() => handleAction(primary)}
-        className="bg-gray-800 px-3 py-1.5 text-xs hover:bg-gray-700"
-        title={labels[primary]}
-      >
-        {labels[primary]}
-      </button>
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        className="bg-gray-800 px-2 py-1.5 text-xs hover:bg-gray-700 border-l border-gray-700"
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
+    <div className="relative">
+      <div ref={wrapperRef} className="inline-flex items-stretch rounded-xl overflow-hidden border border-gray-800">
+        <button
+          type="button"
+          onClick={() => handleAction(primary)}
+          className="bg-gray-800 px-3 py-1.5 text-xs hover:bg-gray-700 disabled:opacity-60"
+          title={labels[primary]}
+          disabled={busy}
+        >
+          {busy ? "Exporting…" : labels[primary]}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          className="bg-gray-800 px-2 py-1.5 text-xs hover:bg-gray-700 border-l border-gray-700 disabled:opacity-60"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          disabled={busy}
+        >
+          <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
 
-      {open && (
-        <div className="absolute z-10 mt-8 w-56 overflow-hidden rounded-xl border border-gray-800 bg-gray-900 shadow-xl">
-          {menuItems.map(({ section, items }, i) => (
-            <React.Fragment key={section}>
-              {i > 0 && <div className="border-t border-gray-800" />}
-              <div className="p-1.5 text-[10px] uppercase tracking-wide text-gray-500">{section}</div>
-              {items.map(({ action, label }) => (
-                <button
-                  key={action}
-                  role="menuitem"
-                  className="w-full px-2.5 py-1.5 text-left text-xs hover:bg-gray-800"
-                  onClick={() => handleAction(action, true)}
-                >
-                  {label}
-                </button>
-              ))}
-            </React.Fragment>
-          ))}
-        </div>
-      )}
+        {open && (
+          <div className="absolute top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-gray-800 bg-gray-900 shadow-xl">
+            {menuItems.map(({ section, items }, i) => (
+              <React.Fragment key={section}>
+                {i > 0 && <div className="border-t border-gray-800" />}
+                <div className="p-1.5 text-[10px] uppercase tracking-wide text-gray-500">{section}</div>
+                {items.map(({ action, label }) => (
+                  <button
+                    key={action}
+                    role="menuitem"
+                    className="w-full px-2.5 py-1.5 text-left text-xs hover:bg-gray-800"
+                    onClick={() => handleAction(action, true)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+type RightStrategy = "shelf" | "skyline";
 
 export default function LayoutView({ inputs, onBack }: Props) {
   const [allowRotate, setAllowRotate] = useState(true);
   const [sort, setSort] = useState<"height" | "area">("height");
+  const [strategy, setStrategy] = useState<RightStrategy>("shelf");
   const [baseIdx, setBaseIdx] = useState(0);
   const [impIdx, setImpIdx] = useState(0);
+  const [exporting, setExporting] = useState(false);
 
   const baseline: PackResult = useMemo(() => packNaive(inputs), [inputs]);
-  const improved: PackResult = useMemo(
-    () => packImproved(inputs, { allowRotate, sort }),
-    [inputs, allowRotate, sort]
-  );
+
+  const improved: PackResult = useMemo(() => {
+    if (strategy === "skyline") {
+      return packSkyline(inputs, { allowRotate, sort });
+    }
+    return packShelf(inputs, { allowRotate, sort });
+  }, [inputs, allowRotate, sort, strategy]);
 
   const safeBaseIdx = Math.min(baseIdx, Math.max(0, baseline.totalSheets - 1));
   const safeImpIdx = Math.min(impIdx, Math.max(0, improved.totalSheets - 1));
@@ -179,7 +192,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
   };
   const onExportImproved = () => {
     const csv = packResultToCSV(improved);
-    downloadCSV("opticut_improved.csv", csv);
+    downloadCSV(`opticut_${strategy}_csv.csv`, csv);
   };
 
   const onExportBaselineSVG = () => {
@@ -200,48 +213,32 @@ export default function LayoutView({ inputs, onBack }: Props) {
       showLabels: true,
       colorForBaseIndex: colorForIndex,
     });
-    downloadSVG(`opticut_improved_sheet${safeImpIdx + 1}.svg`, svg);
+    const prefix = strategy === "skyline" ? "skyline" : "improved";
+    downloadSVG(`opticut_${prefix}_sheet${safeImpIdx + 1}.svg`, svg);
   };
 
-  const onExportAllBaselineSVG = async () => {
+  const onExportAll = async (result: PackResult, prefix: string) => {
     try {
-      const files = baseline.sheets.map((sheet, index) => ({
-        name: `baseline_sheet${index + 1}.svg`,
+      setExporting(true);
+      const files = result.sheets.map((sheet, index) => ({
+        name: `${prefix}_sheet${index + 1}.svg`,
         content: sheetToSVG({
           sheet,
           sheetWidthMm: inputs.sheet.width,
           sheetHeightMm: inputs.sheet.height,
           showLabels: true,
           colorForBaseIndex: colorForIndex,
-        })
+        }),
       }));
-      
-      await downloadZip("opticut_baseline_all_sheets.zip", files);
-    } catch (error) {
-      console.error("Failed to export baseline ZIP ", error);
-      alert("Failed to export ZIP file. Please try again.");
+      await downloadZip(`opticut_${prefix}_all_sheets.zip`, files);
+    } finally {
+      setExporting(false);
     }
   };
 
-  const onExportAllImprovedSVG = async () => {
-    try {
-      const files = improved.sheets.map((sheet, index) => ({
-        name: `improved_sheet${index + 1}.svg`,
-        content: sheetToSVG({
-          sheet,
-          sheetWidthMm: inputs.sheet.width,
-          sheetHeightMm: inputs.sheet.height,
-          showLabels: true,
-          colorForBaseIndex: colorForIndex,
-        })
-      }));
-      
-      await downloadZip("opticut_improved_all_sheets.zip", files);
-    } catch (error) {
-      console.error("Failed to export improved ZIP ", error);
-      alert("Failed to export ZIP file. Please try again.");
-    }
-  };
+  const onExportAllBaselineSVG = () => onExportAll(baseline, "baseline");
+  const onExportAllImprovedSVG = () =>
+    onExportAll(improved, strategy === "skyline" ? "skyline" : "shelf");
 
   return (
     <div className="mx-auto max-w-[90rem] px-4 py-6 pb-28">
@@ -267,7 +264,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
                 onChange={setBaseIdx}
               />
               <SheetPager
-                label="Improved"
+                label={strategy === "skyline" ? "Skyline" : "Shelf"}
                 total={improved.totalSheets}
                 index={safeImpIdx}
                 onChange={setImpIdx}
@@ -289,15 +286,13 @@ export default function LayoutView({ inputs, onBack }: Props) {
                 />
                 <div className="mt-2 text-xs text-gray-400">
                   Sheet {safeBaseIdx + 1}/{baseline.totalSheets} • Waste:{" "}
-                  <span className="text-gray-100">
-                    {wasteBaseSheet.toFixed(1)}%
-                  </span>
+                  <span className="text-gray-100">{wasteBaseSheet.toFixed(1)}%</span>
                 </div>
               </div>
 
               <div>
                 <div className="mb-2 text-sm font-medium text-gray-300">
-                  Improved (sorted + rotation)
+                  {strategy === "skyline" ? "Skyline (bottom-left)" : "Shelf (FFD)"}
                 </div>
                 <LayoutCanvas
                   sheetWidth={inputs.sheet.width}
@@ -309,9 +304,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
                 />
                 <div className="mt-2 text-xs text-gray-400">
                   Sheet {safeImpIdx + 1}/{improved.totalSheets} • Waste:{" "}
-                  <span className="text-gray-100">
-                    {wasteImpSheet.toFixed(1)}%
-                  </span>
+                  <span className="text-gray-100">{wasteImpSheet.toFixed(1)}%</span>
                 </div>
               </div>
             </div>
@@ -321,34 +314,47 @@ export default function LayoutView({ inputs, onBack }: Props) {
         <aside className="space-y-3">
           <Section title="Heuristic Controls">
             <div className="space-y-2.5 text-sm">
+              <label className="block">
+                <span className="mb-1 block text-sm text-gray-300">Right-side strategy</span>
+                <select
+                  value={strategy}
+                  onChange={(e) => {
+                    setStrategy(e.target.value as RightStrategy);
+                    setImpIdx(0);
+                  }}
+                  className="w-full rounded-xl border border-gray-700 bg-gray-900 px-2.5 py-1.5 text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="shelf">Shelf (FFD)</option>
+                  <option value="skyline">Skyline (bottom-left)</option>
+                </select>
+              </label>
+
               <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            className="h-3.5 w-3.5"
-            checked={allowRotate}
-            onChange={(e) => {
-              setAllowRotate(e.target.checked);
-              setImpIdx(0);
-            }}
-          />
-          <span>Allow 90° rotation</span>
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5"
+                  checked={allowRotate}
+                  onChange={(e) => {
+                    setAllowRotate(e.target.checked);
+                    setImpIdx(0);
+                  }}
+                />
+                <span>Allow 90° rotation</span>
               </label>
 
               <label className="block">
-          <span className="mb-1 block text-sm text-gray-300">
-            Sort panels by
-          </span>
-          <select
-            value={sort}
-            onChange={(e) => {
-              setSort(e.target.value as "height" | "area");
-              setImpIdx(0);
-            }}
-            className="w-full rounded-xl border border-gray-700 bg-gray-900 px-2.5 py-1.5 text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
-          >
-            <option value="height">Height (desc)</option>
-            <option value="area">Area (desc)</option>
-          </select>
+                <span className="mb-1 block text-sm text-gray-300">Sort panels by</span>
+                <select
+                  value={sort}
+                  onChange={(e) => {
+                    setSort(e.target.value as "height" | "area");
+                    setImpIdx(0);
+                  }}
+                  className="w-full rounded-xl border border-gray-700 bg-gray-900 px-2.5 py-1.5 text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  <option value="height">Height (desc)</option>
+                  <option value="area">Area (desc)</option>
+                </select>
               </label>
             </div>
           </Section>
@@ -356,30 +362,22 @@ export default function LayoutView({ inputs, onBack }: Props) {
           <Section title="Totals">
             <ul className="space-y-0.5 text-sm">
               <li>
-          Baseline waste (all sheets):{" "}
-          <span className="text-gray-100">
-            {wasteBaseTotal.toFixed(1)}%
-          </span>
+                Baseline waste (all sheets):{" "}
+                <span className="text-gray-100">{wasteBaseTotal.toFixed(1)}%</span>
               </li>
               <li>
-          Improved waste (all sheets):{" "}
-          <span className="text-gray-100">
-            {wasteImpTotal.toFixed(1)}%
-          </span>
+                {(strategy === "skyline" ? "Skyline" : "Shelf (FFD)")} waste (all sheets):{" "}
+                <span className="text-gray-100">{wasteImpTotal.toFixed(1)}%</span>
               </li>
               <li>
-          Waste delta:{" "}
-          <span
-            className={`${
-              deltaTotal >= 0 ? "text-emerald-400" : "text-red-300"
-            }`}
-          >
-            {deltaTotal >= 0 ? "▼" : "▲"} {Math.abs(deltaTotal).toFixed(1)}%
-          </span>
+                Waste delta:{" "}
+                <span className={`${deltaTotal >= 0 ? "text-emerald-400" : "text-red-300"}`}>
+                  {deltaTotal >= 0 ? "▼" : "▲"} {Math.abs(deltaTotal).toFixed(1)}%
+                </span>
               </li>
             </ul>
             <p className="mt-2.5 text-xs text-gray-500">
-              Previews show the selected sheet for each strategy. Totals are computed across all sheets.
+              Right preview uses the selected strategy; totals compare against baseline across all sheets.
             </p>
           </Section>
 
@@ -395,9 +393,10 @@ export default function LayoutView({ inputs, onBack }: Props) {
                 baselineSheetCount={baseline.totalSheets}
                 improvedSheetCount={improved.totalSheets}
                 defaultPrimary="imp_svg"
+                busy={exporting}
               />
               <div className="pt-2 border-t border-gray-800">
-              <div className="mb-1.5 text-xs text-gray-400">Panel Colors</div>
+                <div className="mb-1.5 text-xs text-gray-400">Panel Colors</div>
                 <ColorLegend
                   count={inputs.panels.length}
                   colorForBaseIndex={colorForIndex}
