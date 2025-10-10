@@ -127,7 +127,7 @@ export function computeWastePercent(result: PackResult): number {
 
 export type HeuristicOptions = {
   allowRotate: boolean;
-  sort: "height" | "area";
+  sort: "height" | "area" | "width";
 };
 
 export function packShelf(
@@ -141,11 +141,10 @@ export function packShelf(
     if (opts.sort === "area") {
       return b.width * b.height - a.width * a.height;
     }
-    if (b.height !== a.height) return b.height - a.height;
-    if (b.width !== a.width) return b.width - a.width;
-    const areaDiff = (b.width * b.height) - (a.width * a.height);
-    if (areaDiff !== 0) return areaDiff;
-    return a.baseIndex - b.baseIndex;
+    if (opts.sort === "width") {
+      return b.width - a.width;
+    }
+    return b.height - a.height;
   });
 
   const sheetW = sheet.width;

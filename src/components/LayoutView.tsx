@@ -171,7 +171,7 @@ type RightStrategy = "shelf" | "skyline";
 
 export default function LayoutView({ inputs, onBack }: Props) {
   const [allowRotate, setAllowRotate] = useState(true);
-  const [sort, setSort] = useState<"height" | "area">("height");
+  const [sort, setSort] = useState<"height" | "area" | "width">("height");
   const [strategy, setStrategy] = useState<RightStrategy>("shelf");
   const [baseIdx, setBaseIdx] = useState(0);
   const [impIdx, setImpIdx] = useState(0);
@@ -375,13 +375,14 @@ export default function LayoutView({ inputs, onBack }: Props) {
                 <select
                   value={sort}
                   onChange={(e) => {
-                    setSort(e.target.value as "height" | "area");
+                    setSort(e.target.value as "height" | "area" | "width");
                     setImpIdx(0);
                   }}
                   className="w-full rounded-xl border border-gray-700 bg-gray-900 px-2.5 py-1.5 text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
                 >
                   <option value="height">Height (desc)</option>
                   <option value="area">Area (desc)</option>
+                  <option value="width">Width (desc)</option>
                 </select>
               </label>
             </div>
