@@ -7,6 +7,7 @@ import {
   computeWastePercent,
   packNaive,
   packShelf,
+  packShelfBestFit,
   packSkyline,
   computeWastePercentForSheet,
 } from "../utils/packing";
@@ -167,7 +168,7 @@ function SplitExportButton({
   );
 }
 
-type RightStrategy = "shelf" | "skyline";
+type RightStrategy = "shelf" | "shelf-bf" | "skyline";
 
 export default function LayoutView({ inputs, onBack }: Props) {
   const [allowRotate, setAllowRotate] = useState(true);
@@ -180,9 +181,9 @@ export default function LayoutView({ inputs, onBack }: Props) {
   const baseline: PackResult = useMemo(() => packNaive(inputs), [inputs]);
 
   const improved: PackResult = useMemo(() => {
-    if (strategy === "skyline") {
-      return packSkyline(inputs, { allowRotate, sort });
-    }
+    if (strategy === "skyline") return packSkyline(inputs, { allowRotate, sort });
+    if (strategy === "shelf-bf")
+      return packShelfBestFit(inputs, { allowRotate, sort });
     return packShelf(inputs, { allowRotate, sort });
   }, [inputs, allowRotate, sort, strategy]);
 
@@ -202,17 +203,13 @@ export default function LayoutView({ inputs, onBack }: Props) {
     improved.sheetAreaEach
   );
 
-  const rightLabelShort = strategy === "skyline" ? "Skyline" : "Shelf";
-  const rightLabelLong = strategy === "skyline" ? "Skyline (bottom-left)" : "Shelf (FFD)";
-  const rightExportPrefix = strategy === "skyline" ? "skyline" : "shelf";
-
   const onExportBaseline = () => {
     const csv = packResultToCSV(baseline);
     downloadCSV("opticut_baseline.csv", csv);
   };
   const onExportImproved = () => {
     const csv = packResultToCSV(improved);
-    downloadCSV(`opticut_${rightExportPrefix}.csv`, csv);
+    downloadCSV(`opticut_${strategy}.csv`, csv);
   };
 
   const onExportBaselineSVG = () => {
@@ -233,10 +230,8 @@ export default function LayoutView({ inputs, onBack }: Props) {
       showLabels: true,
       colorForBaseIndex: colorForIndex,
     });
-    downloadSVG(
-      `opticut_${rightExportPrefix}_sheet${safeImpIdx + 1}.svg`,
-      svg
-    );
+    const prefix = strategy === "skyline" ? "skyline" : strategy === "shelf-bf" ? "shelf-bf" : "shelf";
+    downloadSVG(`opticut_${prefix}_sheet${safeImpIdx + 1}.svg`, svg);
   };
 
   const onExportAll = async (result: PackResult, prefix: string) => {
@@ -257,8 +252,16 @@ export default function LayoutView({ inputs, onBack }: Props) {
       setExporting(false);
     }
   };
+  
   const onExportAllBaselineSVG = () => onExportAll(baseline, "baseline");
-  const onExportAllImprovedSVG = () => onExportAll(improved, rightExportPrefix);
+  const onExportAllImprovedSVG = () =>
+    onExportAll(
+      improved,
+      strategy === "skyline" ? "skyline" : strategy === "shelf-bf" ? "shelf-bf" : "shelf"
+    );
+
+  const rightLabelShort = strategy === "skyline" ? "Skyline" : strategy === "shelf-bf" ? "Shelf (Best-Fit)" : "Shelf";
+  const rightLabelFull  = strategy === "skyline" ? "Skyline (bottom-left)" : strategy === "shelf-bf" ? "Shelf (Best-Fit)" : "Shelf (First-Fit)";
 
   return (
     <div className="mx-auto max-w-[90rem] px-4 py-6 pb-28">
@@ -314,7 +317,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
 
               <div>
                 <div className="mb-2 text-sm font-medium text-gray-300">
-                  {rightLabelLong}
+                  {rightLabelFull}
                 </div>
                 <LayoutCanvas
                   sheetWidth={inputs.sheet.width}
@@ -350,7 +353,8 @@ export default function LayoutView({ inputs, onBack }: Props) {
                   }}
                   className="w-full rounded-xl border border-gray-700 bg-gray-900 px-2.5 py-1.5 text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
                 >
-                  <option value="shelf">Shelf (FFD)</option>
+                  <option value="shelf">Shelf (First-Fit)</option>
+                  <option value="shelf-bf">Shelf (Best-Fit)</option>
                   <option value="skyline">Skyline (bottom-left)</option>
                 </select>
               </label>
@@ -409,8 +413,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
                     deltaTotal >= 0 ? "text-emerald-400" : "text-red-300"
                   }`}
                 >
-                  {deltaTotal >= 0 ? "▼" : "▲"}{" "}
-                  {Math.abs(deltaTotal).toFixed(1)}%
+                  {deltaTotal >= 0 ? "▼" : "▲"} {Math.abs(deltaTotal).toFixed(1)}%
                 </span>
               </li>
             </ul>

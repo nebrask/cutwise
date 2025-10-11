@@ -99,7 +99,10 @@ export function packNaive(inputs: PlannerInputs): PackResult {
       baseIndex: c.baseIndex,
       copyIndex: c.copyIndex,
       label: c.label,
-      x, y, w, h,
+      x,
+      y,
+      w,
+      h,
       rotated: false,
     });
 
@@ -130,6 +133,17 @@ export type HeuristicOptions = {
   sort: "height" | "area" | "width";
 };
 
+function sortCopies(
+  copies: { width: number; height: number }[],
+  sort: "height" | "area" | "width"
+) {
+  copies.sort((a, b) => {
+    if (sort === "area") return b.width * b.height - a.width * a.height;
+    if (sort === "width") return b.width - a.width;
+    return b.height - a.height;
+  });
+}
+
 export function packShelf(
   inputs: PlannerInputs,
   opts: HeuristicOptions
@@ -137,15 +151,7 @@ export function packShelf(
   const { sheet, kerf, panels } = inputs;
   const copies = expandCopies(panels);
 
-  copies.sort((a, b) => {
-    if (opts.sort === "area") {
-      return b.width * b.height - a.width * a.height;
-    }
-    if (opts.sort === "width") {
-      return b.width - a.width;
-    }
-    return b.height - a.height;
-  });
+  sortCopies(copies, opts.sort);
 
   const sheetW = sheet.width;
   const sheetH = sheet.height;
@@ -181,32 +187,28 @@ export function packShelf(
     let h = c.height;
     let rotated = false;
 
-    let spaceOnRow = (cursorX === 0 ? sheetW : sheetW - (cursorX + kerf));
-    let fitsNormal = w <= spaceOnRow && h <= (sheetH - cursorY);
-    let fitsRotated = opts.allowRotate
-      ? (h <= spaceOnRow && w <= (sheetH - cursorY))
-      : false;
+    let spaceOnRow = cursorX === 0 ? sheetW : sheetW - (cursorX + kerf);
+    let fitsNormal = w <= spaceOnRow && h <= sheetH - cursorY;
+    let fitsRotated = opts.allowRotate ? h <= spaceOnRow && w <= sheetH - cursorY : false;
 
     if (!fitsNormal && !fitsRotated) {
       cursorX = 0;
       cursorY = cursorY + rowH + kerf;
       rowH = 0;
 
-      if (h > (sheetH - cursorY) && (!opts.allowRotate || w > (sheetH - cursorY))) {
+      if (h > sheetH - cursorY && (!opts.allowRotate || w > sheetH - cursorY)) {
         placeOnNewSheet();
       }
 
-      spaceOnRow = (cursorX === 0 ? sheetW : sheetW - (cursorX + kerf));
-      fitsNormal = w <= spaceOnRow && h <= (sheetH - cursorY);
-      fitsRotated = opts.allowRotate
-        ? (h <= spaceOnRow && w <= (sheetH - cursorY))
-        : false;
+      spaceOnRow = cursorX === 0 ? sheetW : sheetW - (cursorX + kerf);
+      fitsNormal = w <= spaceOnRow && h <= sheetH - cursorY;
+      fitsRotated = opts.allowRotate ? h <= spaceOnRow && w <= sheetH - cursorY : false;
 
       if (!fitsNormal && !fitsRotated) {
         placeOnNewSheet();
         spaceOnRow = sheetW;
         fitsNormal = w <= spaceOnRow && h <= sheetH;
-        fitsRotated = opts.allowRotate ? (h <= spaceOnRow && w <= sheetH) : false;
+        fitsRotated = opts.allowRotate ? h <= spaceOnRow && w <= sheetH : false;
         if (!fitsNormal && !fitsRotated) {
           console.warn(`Panel ${c.label} too large for sheet`);
           continue;
@@ -217,9 +219,8 @@ export function packShelf(
     if (fitsNormal && !fitsRotated) {
       const atEdge = spaceOnRow < sheetW * 0.4;
       const isTall = h > w * 1.5;
-      const wouldFitRotatedOnNewRow = opts.allowRotate &&
-        h <= sheetW &&
-        w <= (sheetH - (cursorY + rowH + kerf));
+      const wouldFitRotatedOnNewRow =
+        opts.allowRotate && h <= sheetW && w <= sheetH - (cursorY + rowH + kerf);
       if (atEdge && isTall && wouldFitRotatedOnNewRow) {
         cursorX = 0;
         cursorY = cursorY + rowH + kerf;
@@ -251,7 +252,11 @@ export function packShelf(
       baseIndex: c.baseIndex,
       copyIndex: c.copyIndex,
       label: c.label,
-      x, y, w, h, rotated,
+      x,
+      y,
+      w,
+      h,
+      rotated,
     });
 
     cursorX = x + w;
@@ -268,6 +273,183 @@ export function packShelf(
   };
 }
 
+export function packShelfBestFit(
+  inputs: PlannerInputs,
+  opts: HeuristicOptions
+): PackResult {
+  const { sheet, kerf } = inputs;
+  const sheetW = sheet.width;
+  const sheetH = sheet.height;
+  const sheetArea = sheetW * sheetH;
+
+  const copies = expandCopies(inputs.panels);
+  sortCopies(copies, opts.sort);
+
+  type Row = { y: number; h: number; cursorX: number };
+  const sheets: SheetLayout[] = [];
+  let current: SheetLayout = { index: 0, rects: [] };
+  sheets.push(current);
+
+  let rows: Row[] = [{ y: 0, h: 0, cursorX: 0 }];
+
+  const placeOnNewSheet = () => {
+    current = { index: sheets.length, rects: [] };
+    sheets.push(current);
+    rows = [{ y: 0, h: 0, cursorX: 0 }];
+  };
+
+  const startNewRow = () => {
+    const last = rows[rows.length - 1];
+    const newY = last.y + last.h + (rows.length > 0 ? kerf : 0);
+    rows.push({ y: newY, h: 0, cursorX: 0 });
+  };
+
+  const tryPlaceInRow = (
+    row: Row,
+    w0: number,
+    h0: number,
+    allowRot: boolean
+  ):
+    | { placed: true; x: number; y: number; w: number; h: number; rotated: boolean }
+    | { placed: false } => {
+    let w = w0;
+    let h = h0;
+    let rotated = false;
+
+    const spaceOnRow = row.cursorX === 0 ? sheetW : sheetW - (row.cursorX + kerf);
+    const fitsN = w <= spaceOnRow && row.y + h <= sheetH;
+    const fitsR = allowRot ? h <= spaceOnRow && row.y + w <= sheetH : false;
+
+    if (!fitsN && !fitsR) return { placed: false };
+
+    if (fitsN && fitsR) {
+      const leftoverN = spaceOnRow - w;
+      const leftoverR = spaceOnRow - h;
+      if (leftoverR < leftoverN) {
+        rotated = true;
+        [w, h] = [h, w];
+      }
+    } else if (!fitsN && fitsR) {
+      rotated = true;
+      [w, h] = [h, w];
+    }
+
+    const x = row.cursorX === 0 ? 0 : row.cursorX + kerf;
+    const y = row.y;
+    return { placed: true, x, y, w, h, rotated };
+  };
+
+  for (let i = 0; i < copies.length; i++) {
+    const c = copies[i];
+
+    let best:
+      | {
+          rowIdx: number;
+          x: number;
+          y: number;
+          w: number;
+          h: number;
+          rotated: boolean;
+          leftover: number;
+        }
+      | null = null;
+
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      const res = tryPlaceInRow(row, c.width, c.height, opts.allowRotate);
+      if (!("placed" in res) || !res.placed) continue;
+
+      const spaceOnRow = row.cursorX === 0 ? sheetW : sheetW - (row.cursorX + kerf);
+      const leftover = spaceOnRow - res.w;
+      if (best === null || leftover < best.leftover) {
+        best = {
+          rowIdx: r,
+          x: res.x,
+          y: res.y,
+          w: res.w,
+          h: res.h,
+          rotated: res.rotated,
+          leftover,
+        };
+      }
+    }
+
+    if (!best) {
+      const last = rows[rows.length - 1];
+      const nextY = last.y + last.h + (rows.length > 0 ? kerf : 0);
+
+      if (nextY + Math.min(c.height, c.width) > sheetH) {
+        placeOnNewSheet();
+      } else {
+        startNewRow();
+      }
+
+      const row = rows[rows.length - 1];
+      const res = tryPlaceInRow(row, c.width, c.height, opts.allowRotate);
+
+      if (!("placed" in res) || !res.placed) {
+        placeOnNewSheet();
+        const row2 = rows[rows.length - 1];
+        const res2 = tryPlaceInRow(row2, c.width, c.height, opts.allowRotate);
+        if (!("placed" in res2) || !res2.placed) continue;
+
+        current.rects.push({
+          id: `s${current.index}-i${i}`,
+          baseId: c.id,
+          baseIndex: c.baseIndex,
+          copyIndex: c.copyIndex,
+          label: c.label,
+          x: res2.x,
+          y: res2.y,
+          w: res2.w,
+          h: res2.h,
+          rotated: res2.rotated,
+        });
+        row2.cursorX = res2.x + res2.w;
+        row2.h = Math.max(row2.h, res2.h);
+      } else {
+        current.rects.push({
+          id: `s${current.index}-i${i}`,
+          baseId: c.id,
+          baseIndex: c.baseIndex,
+          copyIndex: c.copyIndex,
+          label: c.label,
+          x: res.x,
+          y: res.y,
+          w: res.w,
+          h: res.h,
+          rotated: res.rotated,
+        });
+        row.cursorX = res.x + res.w;
+        row.h = Math.max(row.h, res.h);
+      }
+    } else {
+      const row = rows[best.rowIdx];
+      current.rects.push({
+        id: `s${current.index}-i${i}`,
+        baseId: c.id,
+        baseIndex: c.baseIndex,
+        copyIndex: c.copyIndex,
+        label: c.label,
+        x: best.x,
+        y: best.y,
+        w: best.w,
+        h: best.h,
+        rotated: best.rotated,
+      });
+      row.cursorX = best.x + best.w;
+      row.h = Math.max(row.h, best.h);
+    }
+  }
+
+  const totalPanelArea = copies.reduce((acc, p) => acc + p.width * p.height, 0);
+  return {
+    sheets,
+    totalSheets: sheets.length,
+    totalPanelArea,
+    sheetAreaEach: sheetArea,
+  };
+}
 
 type SkylineNode = { x: number; y: number; width: number };
 
@@ -287,12 +469,12 @@ function mergeSkyline(nodes: SkylineNode[]) {
 }
 
 function findSkylineLevel(
-  nodes: SkylineNode[],
-  sheetW: number,
-  sheetH: number,
-  rectW: number,
-  rectH: number,
-  kerf: number
+ nodes: SkylineNode[],
+ sheetW: number,
+ sheetH: number,
+ rectW: number,
+ rectH: number,
+ kerf: number
 ): { x: number; y: number } | null {
   let best: { x: number; y: number } | null = null;
 
@@ -315,7 +497,10 @@ function findSkylineLevel(
       const segStart = Math.max(curX, n.x);
       const segEnd = n.x + n.width;
       const segWidth = Math.max(0, segEnd - segStart);
-      if (segWidth <= 0) { j++; continue; }
+      if (segWidth <= 0) {
+        j++;
+        continue;
+      }
 
       maxY = Math.max(maxY, n.y);
       widthLeft -= segWidth;
@@ -381,7 +566,7 @@ export function packSkyline(
   inputs: PlannerInputs,
   opts: HeuristicOptions
 ): PackResult {
-  const { sheet, kerf, panels } = inputs;
+  const { sheet, kerf } = inputs;
   const sheetW = sheet.width;
   const sheetH = sheet.height;
   const sheetArea = sheetW * sheetH;
@@ -399,6 +584,8 @@ export function packSkyline(
       if (opts.sort === "area") {
         const d = b.width * b.height - a.width * a.height;
         if (d !== 0) return d;
+      } else if (opts.sort === "width") {
+        if (b.width !== a.width) return b.width - a.width;
       } else {
         if (b.height !== a.height) return b.height - a.height;
       }
@@ -428,18 +615,13 @@ export function packSkyline(
     const c = copies[i];
     let picked: { x: number; y: number; w: number; h: number; rotated: boolean } | null = null;
     const posN = findSkylineLevel(skyline, sheetW, sheetH, c.width, c.height, kerf);
-    
-    
+
     if (posN) picked = { x: posN.x, y: posN.y, w: c.width, h: c.height, rotated: false };
 
     if (opts.allowRotate) {
       const posR = findSkylineLevel(skyline, sheetW, sheetH, c.height, c.width, kerf);
       if (posR) {
-        if (
-          !picked ||
-          posR.y < picked.y ||
-          (posR.y === picked.y && posR.x < picked.x)
-        ) {
+        if (!picked || posR.y < picked.y || (posR.y === picked.y && posR.x < picked.x)) {
           picked = { x: posR.x, y: posR.y, w: c.height, h: c.width, rotated: true };
         }
       }
@@ -489,7 +671,6 @@ export function packSkyline(
     sheetAreaEach: sheetArea,
   };
 }
-
 
 export function sheetUsedArea(sheet: SheetLayout): number {
   return sheet.rects.reduce((acc, r) => acc + r.w * r.h, 0);
