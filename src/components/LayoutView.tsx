@@ -9,6 +9,7 @@ import {
   packShelf,
   packShelfBestFit,
   packSkyline,
+  packGuillotine,
   computeWastePercentForSheet,
 } from "../utils/packing";
 import SheetPager from "./SheetPager";
@@ -168,7 +169,7 @@ function SplitExportButton({
   );
 }
 
-type RightStrategy = "shelf" | "shelf-bf" | "skyline";
+type RightStrategy = "shelf" | "shelf-bf" | "skyline" | "guillotine";
 
 export default function LayoutView({ inputs, onBack }: Props) {
   const [allowRotate, setAllowRotate] = useState(true);
@@ -182,10 +183,11 @@ export default function LayoutView({ inputs, onBack }: Props) {
 
   const improved: PackResult = useMemo(() => {
     if (strategy === "skyline") return packSkyline(inputs, { allowRotate, sort });
-    if (strategy === "shelf-bf")
-      return packShelfBestFit(inputs, { allowRotate, sort });
-    return packShelf(inputs, { allowRotate, sort });
+    if (strategy === "shelf-bf") return packShelfBestFit(inputs, { allowRotate, sort });
+    if (strategy === "guillotine") return packGuillotine(inputs, { allowRotate, sort });
+    return packShelf(inputs, { allowRotate, sort }); // Shelf (First Fit)
   }, [inputs, allowRotate, sort, strategy]);
+
 
   const safeBaseIdx = Math.min(baseIdx, Math.max(0, baseline.totalSheets - 1));
   const safeImpIdx = Math.min(impIdx, Math.max(0, improved.totalSheets - 1));
@@ -230,7 +232,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
       showLabels: true,
       colorForBaseIndex: colorForIndex,
     });
-    const prefix = strategy === "skyline" ? "skyline" : strategy === "shelf-bf" ? "shelf-bf" : "shelf";
+    const prefix = strategy === "skyline" ? "skyline" : strategy === "shelf-bf" ? "shelf-bf" : strategy === "guillotine" ? "guillotine" : "shelf";
     downloadSVG(`opticut_${prefix}_sheet${safeImpIdx + 1}.svg`, svg);
   };
 
@@ -257,11 +259,11 @@ export default function LayoutView({ inputs, onBack }: Props) {
   const onExportAllImprovedSVG = () =>
     onExportAll(
       improved,
-      strategy === "skyline" ? "skyline" : strategy === "shelf-bf" ? "shelf-bf" : "shelf"
+      strategy === "skyline" ? "skyline" : strategy === "shelf-bf" ? "shelf-bf" : strategy === "guillotine" ? "guillotine" : "shelf"
     );
 
-  const rightLabelShort = strategy === "skyline" ? "Skyline" : strategy === "shelf-bf" ? "Shelf (Best-Fit)" : "Shelf";
-  const rightLabelFull  = strategy === "skyline" ? "Skyline (bottom-left)" : strategy === "shelf-bf" ? "Shelf (Best-Fit)" : "Shelf (First-Fit)";
+  const rightLabelShort = strategy === "skyline" ? "Skyline" : strategy === "shelf-bf"  ? "Shelf (Best-Fit)" : strategy === "guillotine"? "Guillotine" : "Shelf";
+  const rightLabelFull = strategy === "skyline" ? "Skyline (bottom-left)" : strategy === "shelf-bf"  ? "Shelf (Best-Fit)" : strategy === "guillotine"? "Guillotine (straight cuts)" : "Shelf (First-Fit)";
 
   return (
     <div className="mx-auto max-w-[90rem] px-4 py-6 pb-28">
@@ -356,6 +358,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
                   <option value="shelf">Shelf (First-Fit)</option>
                   <option value="shelf-bf">Shelf (Best-Fit)</option>
                   <option value="skyline">Skyline (bottom-left)</option>
+                  <option value="guillotine">Guillotine (straight cuts)</option>
                 </select>
               </label>
 

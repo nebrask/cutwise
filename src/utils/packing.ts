@@ -672,6 +672,309 @@ export function packSkyline(
   };
 }
 
+type FreeRect = { x: number; y: number; w: number; h: number };
+
+function canFit(fr: FreeRect, w: number, h: number) {
+  return w <= fr.w && h <= fr.h;
+}
+
+function bestAreaFitIndex(freeRects: FreeRect[], w: number, h: number) {
+  let best = -1;
+  let bestAreaWaste = Number.POSITIVE_INFINITY;
+  let bestShortSide = Number.POSITIVE_INFINITY;
+
+  for (let i = 0; i < freeRects.length; i++) {
+    const fr = freeRects[i];
+    if (!canFit(fr, w, h)) continue;
+
+    const waste = fr.w * fr.h - w * h;
+    const shortSide = Math.min(fr.w - w, fr.h - h);
+
+    if (
+      waste < bestAreaWaste ||
+      (waste === bestAreaWaste && shortSide < bestShortSide)
+    ) {
+      best = i;
+      bestAreaWaste = waste;
+      bestShortSide = shortSide;
+    }
+  }
+  return best;
+}
+
+function splitGuillotine(
+  freeRects: FreeRect[],
+  i: number,
+  used: { x: number; y: number; w: number; h: number },
+  kerf: number,
+  sheetW: number,
+  sheetH: number
+) {
+  const fr = freeRects[i];
+
+  const rightW = Math.max(0, fr.w - used.w - kerf);
+  const rightH = used.h;
+  const bottomW = fr.w;
+  const bottomH = Math.max(0, fr.h - used.h - kerf);
+
+  const areaSplitVertical =
+    (rightW > 0 && rightH > 0 ? rightW * rightH : 0) +
+    (bottomW > 0 && bottomH > 0 ? bottomW * bottomH : 0);
+
+  const bottom2W = used.w;
+  const bottom2H = Math.max(0, fr.h - used.h - kerf);
+  const right2W = Math.max(0, fr.w - used.w - kerf);
+  const right2H = fr.h;
+
+  const areaSplitHorizontal =
+    (bottom2W > 0 && bottom2H > 0 ? bottom2W * bottom2H : 0) +
+    (right2W > 0 && right2H > 0 ? right2W * right2H : 0);
+
+  const useVertical = areaSplitVertical >= areaSplitHorizontal;
+
+  const out: FreeRect[] = [];
+
+  if (useVertical) {
+    if (rightW > 0 && rightH > 0) {
+      out.push({
+        x: used.x + used.w + kerf,
+        y: used.y,
+        w: rightW,
+        h: rightH,
+      });
+    }
+
+    if (bottomW > 0 && bottomH > 0) {
+      out.push({
+        x: fr.x,
+        y: used.y + used.h + kerf,
+        w: bottomW,
+        h: bottomH,
+      });
+    }
+  } else {
+    if (bottom2W > 0 && bottom2H > 0) {
+      out.push({
+        x: used.x,
+        y: used.y + used.h + kerf,
+        w: bottom2W,
+        h: bottom2H,
+      });
+    }
+
+    if (right2W > 0 && right2H > 0) {
+      out.push({
+        x: used.x + used.w + kerf,
+        y: fr.y,
+        w: right2W,
+        h: right2H,
+      });
+    }
+  }
+
+  freeRects.splice(i, 1);
+  for (const r of out) {
+    const x2 = Math.max(0, Math.min(r.x, sheetW));
+    const y2 = Math.max(0, Math.min(r.y, sheetH));
+    const w2 = Math.max(0, Math.min(r.w, sheetW - x2));
+    const h2 = Math.max(0, Math.min(r.h, sheetH - y2));
+    if (w2 > 0 && h2 > 0) freeRects.push({ x: x2, y: y2, w: w2, h: h2 });
+  }
+}
+
+function pruneContainedOrMerge(freeRects: FreeRect[]) {
+  for (let i = 0; i < freeRects.length; i++) {
+    const a = freeRects[i];
+    for (let j = freeRects.length - 1; j >= 0; j--) {
+      if (i === j) continue;
+      const b = freeRects[j];
+      const contained =
+        a.x >= b.x &&
+        a.y >= b.y &&
+        a.x + a.w <= b.x + b.w &&
+        a.y + a.h <= b.y + b.h;
+      if (contained) {
+        freeRects.splice(i, 1);
+        i--;
+        break;
+      }
+    }
+  }
+
+  let merged = true;
+
+  while (merged) {
+    merged = false;
+    outer: for (let i = 0; i < freeRects.length; i++) {
+      for (let j = i + 1; j < freeRects.length; j++) {
+        const a = freeRects[i];
+        const b = freeRects[j];
+        if (a.y === b.y && a.h === b.h) {
+          if (a.x + a.w === b.x) {
+            a.w += b.w;
+            freeRects.splice(j, 1);
+            merged = true;
+            break outer;
+          } else if (b.x + b.w === a.x) {
+            b.w += a.w;
+            b.x = a.x;
+            freeRects.splice(i, 1);
+            merged = true;
+            break outer;
+          }
+        }
+
+        if (a.x === b.x && a.w === b.w) {
+          if (a.y + a.h === b.y) {
+            a.h += b.h;
+            freeRects.splice(j, 1);
+            merged = true;
+            break outer;
+          } else if (b.y + b.h === a.y) {
+            b.h += a.h;
+            b.y = a.y;
+            freeRects.splice(i, 1);
+            merged = true;
+            break outer;
+          }
+        }
+      }
+    }
+  }
+}
+
+export function packGuillotine(
+  inputs: PlannerInputs,
+  opts: HeuristicOptions
+): PackResult {
+  const { sheet, kerf, panels } = inputs;
+  const sheetW = sheet.width;
+  const sheetH = sheet.height;
+  const sheetArea = sheetW * sheetH;
+
+  const copies = expandCopies(panels);
+
+  copies.sort((a, b) => {
+    if (opts.sort === "area") {
+      return b.width * b.height - a.width * a.height;
+    }
+    if (opts.sort === "width") {
+      return b.width - a.width;
+    }
+    return b.height - a.height;
+  });
+
+  const sheets: SheetLayout[] = [];
+  let current: SheetLayout = { index: 0, rects: [] };
+  sheets.push(current);
+
+  let freeRects: FreeRect[] = [{ x: 0, y: 0, w: sheetW, h: sheetH }];
+
+  const newSheet = () => {
+    current = { index: sheets.length, rects: [] };
+    sheets.push(current);
+    freeRects = [{ x: 0, y: 0, w: sheetW, h: sheetH }];
+  };
+
+  for (let i = 0; i < copies.length; i++) {
+    const c = copies[i];
+
+    let idxN = bestAreaFitIndex(freeRects, c.width, c.height);
+    let placement:
+      | { i: number; x: number; y: number; w: number; h: number; rotated: boolean }
+      | null = null;
+
+    if (idxN !== -1) {
+      const fr = freeRects[idxN];
+      placement = {
+        i: idxN,
+        x: fr.x,
+        y: fr.y,
+        w: c.width,
+        h: c.height,
+        rotated: false,
+      };
+    }
+
+    if (opts.allowRotate) {
+      const idxR = bestAreaFitIndex(freeRects, c.height, c.width);
+      if (idxR !== -1) {
+        const fr = freeRects[idxR];
+        const cand = {
+          i: idxR,
+          x: fr.x,
+          y: fr.y,
+          w: c.height,
+          h: c.width,
+          rotated: true,
+        };
+        if (
+          !placement ||
+          cand.y < placement.y ||
+          (cand.y === placement.y && cand.x < placement.x)
+        ) {
+          placement = cand;
+        }
+      }
+    }
+
+    if (!placement) {
+      newSheet();
+      const j = bestAreaFitIndex(freeRects, c.width, c.height);
+      if (j !== -1) {
+        const fr = freeRects[j];
+        placement = { i: j, x: fr.x, y: fr.y, w: c.width, h: c.height, rotated: false };
+      } else if (opts.allowRotate) {
+        const k = bestAreaFitIndex(freeRects, c.height, c.width);
+        if (k !== -1) {
+          const fr = freeRects[k];
+          placement = { i: k, x: fr.x, y: fr.y, w: c.height, h: c.width, rotated: true };
+        }
+      }
+
+      if (!placement) {
+        console.warn(`Panel ${c.label} is too large for sheet`);
+        continue;
+      }
+    }
+
+    current.rects.push({
+      id: `s${current.index}-i${i}`,
+      baseId: c.id,
+      baseIndex: c.baseIndex,
+      copyIndex: c.copyIndex,
+      label: c.label,
+      x: placement.x,
+      y: placement.y,
+      w: placement.w,
+      h: placement.h,
+      rotated: placement.rotated,
+    });
+
+    splitGuillotine(
+      freeRects,
+      placement.i,
+      { x: placement.x, y: placement.y, w: placement.w, h: placement.h },
+      kerf,
+      sheetW,
+      sheetH
+    );
+
+    pruneContainedOrMerge(freeRects);
+  }
+
+  const totalPanelArea = copies.reduce((acc, p) => acc + p.width * p.height, 0);
+
+  return {
+    sheets,
+    totalSheets: sheets.length,
+    totalPanelArea,
+    sheetAreaEach: sheetArea,
+  };
+}
+
+
+
 export function sheetUsedArea(sheet: SheetLayout): number {
   return sheet.rects.reduce((acc, r) => acc + r.w * r.h, 0);
 }
