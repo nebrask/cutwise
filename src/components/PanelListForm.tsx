@@ -1,6 +1,8 @@
 import React from "react";
 import type { Panel } from "../types";
 import { nanoid } from "nanoid";
+import MaterialSelect, { MATERIAL_LABELS } from "./MaterialSelect";
+import type { Material } from "./MaterialSelect";
 
 type Props = {
   items: Panel[];
@@ -20,6 +22,7 @@ export default function PanelListForm({ items, onChange }: Props) {
         width: 600,
         height: 300,
         qty: 1,
+        material: "plywood",
       },
     ]);
   };
@@ -47,13 +50,14 @@ export default function PanelListForm({ items, onChange }: Props) {
               <th className="px-2">Width (mm)</th>
               <th className="px-2">Height (mm)</th>
               <th className="px-2">Qty</th>
+              <th className="px-2">Material</th>
               <th className="px-2"></th>
             </tr>
           </thead>
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-2 py-3 text-gray-400">
+                <td colSpan={5} className="px-2 py-3 text-gray-400">
                   No panels yet. Click “Add Panel”.
                 </td>
               </tr>
@@ -91,10 +95,20 @@ export default function PanelListForm({ items, onChange }: Props) {
                     />
                   </td>
                   <td className="px-2 py-2">
+                    <div className="min-w-[210px]">
+                      <MaterialSelect
+                        compactLabel
+                        value={(p.material as Material) ?? "plywood"}
+                        onChange={(m) => update(p.id, { material: m })}
+                      />
+                    </div>
+                  </td>
+                  <td className="px-2 py-2">
                     <button
                       type="button"
                       onClick={() => remove(p.id)}
                       className="rounded-lg bg-gray-800 px-3 py-1 text-sm text-red-300 hover:bg-gray-700"
+                      title={`Remove (${MATERIAL_LABELS[(p.material as Material) ?? "plywood"]})`}
                     >
                       Remove
                     </button>

@@ -8,6 +8,7 @@ export type Panel = {
   width: number;
   height: number;
   qty: number;
+  material?: "plywood" | "mdf" | "wood-h" | "wood-v" | "acrylic";
 };
 
 export type PlannerInputs = {

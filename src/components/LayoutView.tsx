@@ -262,8 +262,8 @@ export default function LayoutView({ inputs, onBack }: Props) {
       strategy === "skyline" ? "skyline" : strategy === "shelf-bf" ? "shelf-bf" : strategy === "guillotine" ? "guillotine" : "shelf"
     );
 
-  const rightLabelShort = strategy === "skyline" ? "Skyline" : strategy === "shelf-bf"  ? "Shelf (Best-Fit)" : strategy === "guillotine"? "Guillotine" : "Shelf";
-  const rightLabelFull = strategy === "skyline" ? "Skyline (bottom-left)" : strategy === "shelf-bf"  ? "Shelf (Best-Fit)" : strategy === "guillotine"? "Guillotine (straight cuts)" : "Shelf (First-Fit)";
+  const rightLabelShort = strategy === "skyline" ? "Skyline" : strategy === "shelf-bf"  ? "Shelf (best-fit)" : strategy === "guillotine"? "Guillotine" : "Shelf";
+  const rightLabelFull = strategy === "skyline" ? "Skyline (bottom-left)" : strategy === "shelf-bf"  ? "Shelf (best-fit)" : strategy === "guillotine"? "Guillotine (straight cuts)" : "Shelf (first-fit)";
 
   return (
     <div className="mx-auto max-w-[90rem] px-4 py-6 pb-28">
@@ -355,8 +355,8 @@ export default function LayoutView({ inputs, onBack }: Props) {
                   }}
                   className="w-full rounded-xl border border-gray-700 bg-gray-900 px-2.5 py-1.5 text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
                 >
-                  <option value="shelf">Shelf (First-Fit)</option>
-                  <option value="shelf-bf">Shelf (Best-Fit)</option>
+                  <option value="shelf">Shelf (first-fit)</option>
+                  <option value="shelf-bf">Shelf (best-fit)</option>
                   <option value="skyline">Skyline (bottom-left)</option>
                   <option value="guillotine">Guillotine (straight cuts)</option>
                 </select>

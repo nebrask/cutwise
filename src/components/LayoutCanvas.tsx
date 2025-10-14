@@ -105,7 +105,8 @@ export default function LayoutCanvas({
           style={{ display: "block", marginLeft: "auto", marginRight: "auto" }}
         />
         <div className="mt-2 text-center text-xs text-gray-400">
-          Preview scaled to fit • Sheet {sheet.index + 1}
+          Preview scaled to fit
+          {sheet.material && ` • ${sheet.material}`}
         </div>
       </div>
     </div>

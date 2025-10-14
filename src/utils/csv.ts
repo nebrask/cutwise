@@ -10,6 +10,7 @@ function esc(v: string | number | boolean): string {
 export function packResultToCSV(result: PackResult): string {
   const header = [
     "sheet_index",
+    "material",
     "base_id",
     "base_number",
     "copy_number",
@@ -27,6 +28,7 @@ export function packResultToCSV(result: PackResult): string {
       
       rows.push([
         sIdx,
+        esc(sheet.material || "unknown"),
         esc(`p${baseNum}`),
         baseNum,
         copyNum,
