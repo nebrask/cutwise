@@ -266,7 +266,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
   const rightLabelFull = strategy === "skyline" ? "Skyline (bottom-left)" : strategy === "shelf-bf"  ? "Shelf (best-fit)" : strategy === "guillotine"? "Guillotine (straight cuts)" : "Shelf (first-fit)";
 
   return (
-    <div className="mx-auto max-w-[90rem] px-4 py-6 pb-28">
+    <div className="mx-auto max-w-[91rem] px-4 py-6 pb-28">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-semibold">Layout</h2>
         <button
@@ -278,7 +278,8 @@ export default function LayoutView({ inputs, onBack }: Props) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
+
         <div className="space-y-4">
           <Section title="Comparison">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -443,7 +444,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
               <div className="pt-2 border-t border-gray-800">
                 <div className="mb-1.5 text-xs text-gray-400">Panel Colors</div>
                 <ColorLegend
-                  count={inputs.panels.length}
+                  panels={inputs.panels}
                   colorForBaseIndex={colorForIndex}
                 />
               </div>
