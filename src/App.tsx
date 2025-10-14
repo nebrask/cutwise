@@ -52,8 +52,8 @@ function App() {
 
 
       {mode === "inputs" ? (
-        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 px-4 py-6 pb-24 md:grid-cols-3">
-          <div className="md:col-span-2 space-y-4">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 px-4 py-6 pb-24 md:grid-cols-[1fr_340px]">
+          <div className="space-y-4">
             <Section title="Sheet Configuration">
               <SheetConfigForm value={inputs.sheet} onChange={setSheet} />
             </Section>
