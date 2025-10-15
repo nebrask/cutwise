@@ -45,7 +45,14 @@ function App() {
     <main className="min-h-screen bg-black text-gray-100">
       <header className="border-b border-gray-900 bg-gray-950">
         <div className="flex w-full items-center justify-between px-10 py-4">
-          <h1 className="text-xl font-bold">OptiCut</h1>
+          <div className="flex items-center">
+            <img 
+              src="src\assets\logo.png" 
+              alt="CutWise Logo" 
+              className="h-9 w-9"
+            />
+            <h1 className="text-xl font-semibold tracking-tight">CutWise</h1>
+          </div>
           <div className="text-sm text-gray-400">Zero-waste cut planner</div>
         </div>
       </header>
@@ -118,7 +125,7 @@ function App() {
       )}
 
       <footer className="fixed bottom-0 left-0 right-0 border-t border-gray-900 bg-black py-3 text-center text-[10px] text-gray-500">
-        © {new Date().getFullYear()} OptiCut
+        © {new Date().getFullYear()} CutWise
       </footer>
     </main>
   );
