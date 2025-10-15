@@ -169,24 +169,42 @@ function SplitExportButton({
   );
 }
 
-type RightStrategy = "shelf" | "shelf-bf" | "skyline" | "guillotine";
+type RightStrategy = "auto" | "shelf" | "shelf-bf" | "skyline" | "guillotine";
 
 export default function LayoutView({ inputs, onBack }: Props) {
   const [allowRotate, setAllowRotate] = useState(true);
   const [sort, setSort] = useState<"height" | "area" | "width">("height");
-  const [strategy, setStrategy] = useState<RightStrategy>("shelf");
+  const [strategy, setStrategy] = useState<RightStrategy>("auto");
   const [baseIdx, setBaseIdx] = useState(0);
   const [impIdx, setImpIdx] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [autoSelectedStrategy, setAutoSelectedStrategy] = useState<string>("shelf");
 
   const baseline: PackResult = useMemo(() => packNaive(inputs), [inputs]);
 
   const improved: PackResult = useMemo(() => {
+    if (strategy === "auto") {
+      const candidates = [
+        { name: "shelf", result: packShelf(inputs, { allowRotate, sort }) }, // Shelf (First Fit)
+        { name: "shelf-bf", result: packShelfBestFit(inputs, { allowRotate, sort }) },
+        { name: "skyline", result: packSkyline(inputs, { allowRotate, sort }) },
+        { name: "guillotine", result: packGuillotine(inputs, { allowRotate, sort })},
+      ];
+
+      const best = candidates.reduce((prev, curr) => 
+        computeWastePercent(curr.result) < computeWastePercent(prev.result) ? curr : prev
+      );
+
+      setAutoSelectedStrategy(best.name);
+      return best.result;
+    }
+
     if (strategy === "skyline") return packSkyline(inputs, { allowRotate, sort });
     if (strategy === "shelf-bf") return packShelfBestFit(inputs, { allowRotate, sort });
     if (strategy === "guillotine") return packGuillotine(inputs, { allowRotate, sort });
-    return packShelf(inputs, { allowRotate, sort }); // Shelf (First Fit)
+    return packShelf(inputs, { allowRotate, sort });
   }, [inputs, allowRotate, sort, strategy]);
+
 
 
   const safeBaseIdx = Math.min(baseIdx, Math.max(0, baseline.totalSheets - 1));
@@ -207,11 +225,15 @@ export default function LayoutView({ inputs, onBack }: Props) {
 
   const onExportBaseline = () => {
     const csv = packResultToCSV(baseline);
-    downloadCSV("opticut_baseline.csv", csv);
+    downloadCSV("cutwise_baseline.csv", csv);
   };
+
   const onExportImproved = () => {
     const csv = packResultToCSV(improved);
-    downloadCSV(`opticut_${strategy}.csv`, csv);
+    const filename = strategy === "auto" 
+      ? `cutwise_auto_${autoSelectedStrategy}.csv`
+      : `cutwise_${strategy}.csv`;
+    downloadCSV(filename, csv);
   };
 
   const onExportBaselineSVG = () => {
@@ -222,7 +244,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
       showLabels: true,
       colorForBaseIndex: colorForIndex,
     });
-    downloadSVG(`opticut_baseline_sheet${safeBaseIdx + 1}.svg`, svg);
+    downloadSVG(`cutwise_baseline_sheet${safeBaseIdx + 1}.svg`, svg);
   };
   const onExportImprovedSVG = () => {
     const svg = sheetToSVG({
@@ -232,8 +254,8 @@ export default function LayoutView({ inputs, onBack }: Props) {
       showLabels: true,
       colorForBaseIndex: colorForIndex,
     });
-    const prefix = strategy === "skyline" ? "skyline" : strategy === "shelf-bf" ? "shelf-bf" : strategy === "guillotine" ? "guillotine" : "shelf";
-    downloadSVG(`opticut_${prefix}_sheet${safeImpIdx + 1}.svg`, svg);
+    const prefix = strategy === "auto" ? `auto_${autoSelectedStrategy}` : strategy === "skyline" ? "skyline" : strategy === "shelf-bf" ? "shelf-bf" : strategy === "guillotine" ? "guillotine" : "shelf";
+    downloadSVG(`cutwise_${prefix}_sheet${safeImpIdx + 1}.svg`, svg);
   };
 
   const onExportAll = async (result: PackResult, prefix: string) => {
@@ -249,7 +271,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
           colorForBaseIndex: colorForIndex,
         }),
       }));
-      await downloadZip(`opticut_${prefix}_all_sheets.zip`, files);
+      await downloadZip(`cutwise_${prefix}_all_sheets.zip`, files);
     } finally {
       setExporting(false);
     }
@@ -259,11 +281,21 @@ export default function LayoutView({ inputs, onBack }: Props) {
   const onExportAllImprovedSVG = () =>
     onExportAll(
       improved,
-      strategy === "skyline" ? "skyline" : strategy === "shelf-bf" ? "shelf-bf" : strategy === "guillotine" ? "guillotine" : "shelf"
+      strategy === "auto" ? `auto_${autoSelectedStrategy}` : strategy === "skyline" ? "skyline" : strategy === "shelf-bf" ? "shelf-bf" : strategy === "guillotine" ? "guillotine" : "shelf"
     );
 
-  const rightLabelShort = strategy === "skyline" ? "Skyline" : strategy === "shelf-bf"  ? "Shelf (best-fit)" : strategy === "guillotine"? "Guillotine" : "Shelf";
-  const rightLabelFull = strategy === "skyline" ? "Skyline (bottom-left)" : strategy === "shelf-bf"  ? "Shelf (best-fit)" : strategy === "guillotine"? "Guillotine (straight cuts)" : "Shelf (first-fit)";
+  const strategyLabels: Record<string, { short: string; full: string }> = {
+    auto: { short: "Auto", full: "Auto (best result)" },
+    shelf: { short: "Shelf", full: "Shelf (first-fit)" },
+    "shelf-bf": { short: "Shelf (best-fit)", full: "Shelf (best-fit)" },
+    skyline: { short: "Skyline", full: "Skyline (bottom-left)" },
+    guillotine: { short: "Guillotine", full: "Guillotine (straight cuts)" },
+  };
+
+  const displayStrategy = strategy === "auto" ? autoSelectedStrategy : strategy;
+  const rightLabelShort = strategyLabels[displayStrategy]?.short || "Auto";
+  const rightLabelFull = strategyLabels[displayStrategy]?.full || "Auto (best result)";
+
 
   return (
     <div className="mx-auto max-w-[91rem] px-4 py-6 pb-28">
@@ -358,12 +390,19 @@ export default function LayoutView({ inputs, onBack }: Props) {
                   }}
                   className="w-full rounded-xl border border-gray-700 bg-gray-900 px-2.5 py-1.5 text-gray-100 outline-none focus:ring-2 focus:ring-cyan-500"
                 >
+                  <option value="auto">Auto (best result)</option>
                   <option value="shelf">Shelf (first-fit)</option>
                   <option value="shelf-bf">Shelf (best-fit)</option>
                   <option value="skyline">Skyline (bottom-left)</option>
                   <option value="guillotine">Guillotine (straight cuts)</option>
                 </select>
               </label>
+              
+              {strategy === "auto" && (
+                <div className="rounded-lg bg-gray-800 px-2.5 py-2 text-xs text-gray-400">
+                  Auto selected: <span className="text-cyan-400 font-medium">{strategyLabels[autoSelectedStrategy]?.full}</span>
+                </div>
+              )}
 
               <label className="flex items-center gap-2">
                 <input
