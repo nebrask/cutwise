@@ -9,9 +9,27 @@ import type { PlannerInputs, Panel } from "./types";
 type Mode = "inputs" | "layout";
 
 const initialPanels: Panel[] = [
-  { id: "p1", width: 600, height: 300, qty: 2 },
-  { id: "p2", width: 400, height: 400, qty: 1 },
+  // Plywood - structural carcass and shelving
+  { id: "p1", label: "Side Panel",        width: 600,  height: 1200, qty: 2, material: "plywood" },
+  { id: "p2", label: "Top and Bottom",    width: 1100, height: 600,  qty: 2, material: "plywood" },
+  { id: "p3", label: "Fixed Shelf",       width: 1100, height: 300,  qty: 1, material: "plywood" },
+  { id: "p4", label: "Adjustable Shelf",  width: 1100, height: 300,  qty: 2, material: "plywood" },
+  { id: "p5", label: "Back Panel",        width: 1100, height: 1200, qty: 1, material: "plywood" },
+
+  // MDF - drawer components and interior dividers
+  { id: "p6", label: "Drawer Front",      width: 520,  height: 180,  qty: 4, material: "mdf" },
+  { id: "p7", label: "Drawer Side",       width: 500,  height: 120,  qty: 8, material: "mdf" },
+  { id: "p8", label: "Compartment Wall",  width: 500,  height: 250,  qty: 3, material: "mdf" },
+  { id: "p9", label: "Support Rail",      width: 80,   height: 800,  qty: 4, material: "mdf" },
+
+  // Acrylic - glass-like door panels
+  { id: "p10", label: "Door Panel",       width: 400,  height: 500,  qty: 2, material: "acrylic" },
+
+  // Solid wood - face frame (horizontal and vertical grain)
+  { id: "p11", label: "Face Rail",        width: 1100, height: 70,   qty: 2, material: "wood-h" },
+  { id: "p12", label: "Face Stile",       width: 70,   height: 700,  qty: 2, material: "wood-v" },
 ];
+
 
 function App() {
   const [mode, setMode] = useState<Mode>("inputs");

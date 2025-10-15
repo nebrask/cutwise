@@ -106,7 +106,7 @@ export default function PanelListForm({ items, onChange }: Props) {
                     <td className="px-2 py-2">
                       <input
                         type="text"
-                        className="w-32 rounded-lg border border-gray-700 bg-gray-950 px-2 py-1 text-gray-100 focus:ring-2 focus:ring-cyan-500"
+                        className="w-36 rounded-lg border border-gray-700 bg-gray-950 px-2 py-1 text-gray-100 focus:ring-2 focus:ring-cyan-500"
                         value={p.label || ""}
                         placeholder="Optional"
                         onChange={(e) => update(p.id, { label: e.target.value })}
@@ -115,7 +115,7 @@ export default function PanelListForm({ items, onChange }: Props) {
                     <td className="px-2 py-2">
                       <input
                         type="number"
-                        className="w-26 rounded-lg border border-gray-700 bg-gray-950 px-2 py-1 text-gray-100 focus:ring-2 focus:ring-cyan-500"
+                        className="w-24 rounded-lg border border-gray-700 bg-gray-950 px-2 py-1 text-gray-100 focus:ring-2 focus:ring-cyan-500"
                         value={p.width}
                         min={1}
                         step={1}
@@ -125,7 +125,7 @@ export default function PanelListForm({ items, onChange }: Props) {
                     <td className="px-2 py-2">
                       <input
                         type="number"
-                        className="w-26 rounded-lg border border-gray-700 bg-gray-950 px-2 py-1 text-gray-100 focus:ring-2 focus:ring-cyan-500"
+                        className="w-24 rounded-lg border border-gray-700 bg-gray-950 px-2 py-1 text-gray-100 focus:ring-2 focus:ring-cyan-500"
                         value={p.height}
                         min={1}
                         step={1}
@@ -135,7 +135,7 @@ export default function PanelListForm({ items, onChange }: Props) {
                     <td className="px-2 py-2">
                       <input
                         type="number"
-                        className="w-22 rounded-lg border border-gray-700 bg-gray-950 px-2 py-1 text-gray-100 focus:ring-2 focus:ring-cyan-500"
+                        className="w-20 rounded-lg border border-gray-700 bg-gray-950 px-2 py-1 text-gray-100 focus:ring-2 focus:ring-cyan-500"
                         value={p.qty}
                         min={1}
                         step={1}
