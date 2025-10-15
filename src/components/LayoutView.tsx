@@ -309,6 +309,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
                   sheet={baseline.sheets[safeBaseIdx]}
                   maxViewportHeightRatio={0.92}
                   colorForBaseIndex={colorForIndex}
+                  panels={inputs.panels}
                 />
                 <div className="mt-2 text-xs text-gray-400">
                   Sheet {safeBaseIdx + 1}/{baseline.totalSheets} • Waste:{" "}
@@ -329,6 +330,7 @@ export default function LayoutView({ inputs, onBack }: Props) {
                   sheet={improved.sheets[safeImpIdx]}
                   maxViewportHeightRatio={0.92}
                   colorForBaseIndex={colorForIndex}
+                  panels={inputs.panels}
                 />
                 <div className="mt-2 text-xs text-gray-400">
                   Sheet {safeImpIdx + 1}/{improved.totalSheets} • Waste:{" "}
