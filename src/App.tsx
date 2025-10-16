@@ -65,9 +65,9 @@ function App() {
         <div className="flex w-full items-center justify-between px-10 py-4">
           <div className="flex items-center">
             <img 
-              src="src\assets\logo.png" 
+              src="/logo.png" 
               alt="CutWise Logo" 
-              className="h-9 w-9"
+              className="h-9 w-9" 
             />
             <h1 className="text-xl font-semibold tracking-tight">CutWise</h1>
           </div>
