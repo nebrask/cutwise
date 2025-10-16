@@ -1,4 +1,3 @@
-import React from "react";
 import type { Panel } from "../types";
 import { nanoid } from "nanoid";
 import MaterialSelect, { MATERIAL_LABELS } from "./MaterialSelect";

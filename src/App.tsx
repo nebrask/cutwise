@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import Section from "./components/Section";
 import SheetConfigForm from "./components/SheetConfigForm";
 import KerfInput from "./components/KerfInput";

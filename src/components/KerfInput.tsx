@@ -1,4 +1,3 @@
-import React from "react";
 import InputNumber from "./InputNumber";
 
 type Props = {

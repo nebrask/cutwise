@@ -1,4 +1,3 @@
-import React from "react";
 import { Info } from "lucide-react";
 
 export type Material = "plywood" | "mdf" | "wood-h" | "wood-v" | "acrylic";

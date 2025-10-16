@@ -1,4 +1,3 @@
-import React from "react";
 import type { Panel } from "../types";
 
 type Props = {

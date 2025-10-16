@@ -23,7 +23,6 @@ type HoverInfo = {
 export default function LayoutCanvas({
   sheetWidth,
   sheetHeight,
-  kerf,
   sheet,
   maxViewportHeightRatio = 0.9,
   colorForBaseIndex,

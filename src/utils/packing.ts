@@ -572,7 +572,7 @@ function mergeSkyline(nodes: SkylineNode[]) {
 
 function findSkylineLevel(
   nodes: SkylineNode[],
-  sheetW: number,
+  _sheetW: number,
   sheetH: number,
   rectW: number,
   rectH: number,
