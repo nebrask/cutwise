@@ -69,7 +69,7 @@ type OrientationAllowance = {
   mustRotate: boolean;    
 };
 
-function allowedOrientation(panel: Panel, allowRotateToggle: boolean): OrientationAllowance {
+export function allowedOrientation(panel: Panel, allowRotateToggle: boolean): OrientationAllowance {
   const mat = panel.material ?? "plywood"; 
   const w = panel.width;
   const h = panel.height;
@@ -114,7 +114,7 @@ function allowedOrientation(panel: Panel, allowRotateToggle: boolean): Orientati
   };
 }
 
-function minHeightAllowed(panel: Panel): number {
+export function minHeightAllowed(panel: Panel): number {
   
   const w = panel.width;
   const h = panel.height;
