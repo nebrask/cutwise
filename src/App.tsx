@@ -50,7 +50,7 @@ function App() {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [modalMode, setModalMode] = useState<"save" | "load">("save");
 
-  const BACKEND_URL = "http://localhost:5000";
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
   const setSheet = (sheet: PlannerInputs["sheet"]) =>
     setInputs((prev) => ({ ...prev, sheet }));
